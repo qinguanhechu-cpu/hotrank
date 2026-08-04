@@ -54,6 +54,7 @@
     <div class="meta" id="meta">加载中…</div>
   </header>
   <div id="banner"></div>
+  <div class="pills" id="modes" style="padding-top:12px"></div>
   <div class="tagbar" id="tagbar"></div>
   <div class="panel" id="panel" style="display:none"></div>
   <div class="pills" id="pills"></div>
@@ -62,7 +63,7 @@
 </div>
 <script>
 "use strict";
-var DATA = null, CAT = "全部", ACTIVE = {}, PANEL_OPEN = false;
+var DATA = null, CAT = "全部", MODE = "rank", ACTIVE = {}, PANEL_OPEN = false;
 var COLORS = ["#e11d48","#2563eb","#16a34a","#d97706","#7c3aed","#0891b2","#db2777","#65a30d","#9333ea","#0d9488"];
 var LS_KEY = "xhs_hot_tags_v1";
 
@@ -93,6 +94,47 @@ function matchTags(word) {
     }
   }
   return hit;
+}
+function matchActive(word) {
+  return matchTags(word).filter(function (h) { return ACTIVE[h.t.n]; });
+}
+function tagBadges(hits) {
+  var s = "";
+  for (var i = 0; i < hits.length; i++)
+    s += '<span class="badge tag" style="background:' + tagColor(hits[i].i) + '">' + esc(hits[i].t.n) + '</span>';
+  return s;
+}
+function trafficHtml() {
+  var act = activeNames();
+  var list = DATA.traffic || [];
+  var html = '<div class="meta" style="margin:2px 2px 10px">近 7 天流量扶持活动共 ' + list.length + ' 个；你的标签同样会高亮命中的活动和话题。</div>';
+  var shown = 0;
+  for (var i = 0; i < list.length; i++) {
+    var a = list[i];
+    var tHits = act.length ? matchActive(a.title) : [];
+    var rows = "", hits = 0;
+    for (var j = 0; j < (a.topics || []).length; j++) {
+      var tp = a.topics[j];
+      var th = act.length ? matchActive(tp.name) : [];
+      if (act.length && !th.length && !tHits.length) continue;
+      hits++;
+      rows += '<div class="row"><span class="word">#' + esc(tp.name) + tagBadges(th) + '</span>' +
+        '<span class="stats">' + fmtHot(tp.view) + ' 浏览 · ' + fmtHot(tp.hot) + ' 笔记</span></div>';
+    }
+    if (act.length && !hits) continue;
+    shown++;
+    html += '<div class="card"><div class="sech"><span>' + esc(a.title) + tagBadges(tHits) + '</span>' +
+      '<span style="color:var(--tx2);font-size:12px;font-weight:400">' + esc(a.type) + ' · ' + esc(a.nick) + ' · ' + esc(a.time) + '</span></div>' +
+      (rows || '<div class="empty">该活动暂无话题</div>') + '</div>';
+  }
+  if (act.length && !shown) html += '<div class="empty">没有命中「' + esc(act.join("、")) + '」的流量扶持话题</div>';
+  return html;
+}
+function renderModes() {
+  document.getElementById("modes").innerHTML =
+    '<span class="pill' + (MODE === "rank" ? " on" : "") + '" data-mode="rank">热搜榜</span>' +
+    '<span class="pill' + (MODE === "traffic" ? " on" : "") + '" data-mode="traffic">流量扶持话题</span>';
+  document.getElementById("pills").style.display = MODE === "rank" ? "" : "none";
 }
 function rowHtml(it, showCat) {
   var hits = matchTags(it.word);
@@ -151,6 +193,7 @@ function activeNames() {
 }
 function renderList() {
   var el = document.getElementById("list");
+  if (MODE === "traffic") { el.innerHTML = trafficHtml(); return; }
   var act = activeNames();
   var html = "";
   if (act.length) {
@@ -183,10 +226,11 @@ function renderList() {
   }
   el.innerHTML = html;
 }
-function renderAll() { renderMeta(); renderTagbar(); renderPanel(); renderPills(); renderList(); }
+function renderAll() { renderMeta(); renderModes(); renderTagbar(); renderPanel(); renderPills(); renderList(); }
 
 document.addEventListener("click", function (e) {
   var t = e.target;
+  if (t.dataset && t.dataset.mode) { MODE = t.dataset.mode; renderAll(); return; }
   if (t.id === "addbtn") { PANEL_OPEN = !PANEL_OPEN; renderPanel(); return; }
   if (t.id === "newadd") {
     var n = document.getElementById("newname").value.trim();

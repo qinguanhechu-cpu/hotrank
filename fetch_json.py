@@ -102,12 +102,31 @@ def main():
         items[cat] = rows
         time.sleep(0.5)
 
+    traffic = []
+    tdata = post(cookie, "/official/rank/tsActivities",
+                 {"time": "7d", "size": 100, "accountType": [], "useridList": [], "start": 1})
+    for a in tdata.get("list") or []:
+        traffic.append({
+            "title": a.get("title") or "",
+            "type": a.get("accountType") or "",
+            "nick": a.get("nickname") or "",
+            "time": (a.get("createTime") or "")[:10],
+            "topics": [
+                {"name": t.get("topicName") or "",
+                 "hot": int(t.get("hotNoteCount") or 0),
+                 "view": int(t.get("viewNum") or 0)}
+                for t in a.get("topics") or []
+            ],
+        })
+    time.sleep(0.5)
+
     now = datetime.now(timezone(timedelta(hours=8)))
     out = {
         "rank_date": day,
         "generated_at": now.strftime("%Y-%m-%d %H:%M"),
         "categories": CATEGORIES,
         "items": items,
+        "traffic": traffic,
     }
     with open(OUT_PATH, "w", encoding="utf-8") as f:
         json.dump(out, f, ensure_ascii=False)
