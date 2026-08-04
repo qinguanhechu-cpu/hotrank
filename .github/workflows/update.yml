@@ -2,7 +2,7 @@ name: update-data
 
 on:
   schedule:
-    - cron: "30 1 * * *"   # UTC 1:30 = 北京时间 9:30
+    - cron: "0 * * * *"     # 每小时整点自动更新
   workflow_dispatch:        # 手动触发按钮，方便测试
 
 permissions:

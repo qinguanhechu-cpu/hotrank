@@ -149,6 +149,16 @@ def main():
         "traffic": traffic,
         "topics_traffic": {"date": tday, "list": trows},
     }
+    if os.path.exists(OUT_PATH):
+        try:
+            with open(OUT_PATH, encoding="utf-8") as f:
+                old = json.load(f)
+            old_cmp = {k: v for k, v in old.items() if k != "generated_at"}
+            new_cmp = {k: v for k, v in out.items() if k != "generated_at"}
+            if old_cmp == new_cmp:
+                out["generated_at"] = old["generated_at"]
+        except Exception:
+            pass
     with open(OUT_PATH, "w", encoding="utf-8") as f:
         json.dump(out, f, ensure_ascii=False)
     total = sum(len(v) for v in items.values())
