@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>小红书热搜词榜单</title>
+<style>
+  :root { --blue:#2563eb; --bg:#f5f6f8; --card:#fff; --tx:#1f2329; --tx2:#8a919f; --line:#e8eaf0; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--tx); font:14px/1.6 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif; }
+  .wrap { max-width:960px; margin:0 auto; padding:16px 12px 60px; }
+  header { position:sticky; top:0; z-index:5; background:var(--bg); padding:12px 0 8px; border-bottom:1px solid var(--line); }
+  h1 { font-size:20px; }
+  .meta { color:var(--tx2); font-size:12px; margin-top:2px; }
+  .tagbar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:12px 0 4px; }
+  .tagbar .lab { color:var(--tx2); font-size:12px; }
+  .chip { display:inline-flex; align-items:center; gap:6px; border:1px solid var(--line); background:var(--card);
+          border-radius:999px; padding:3px 12px; cursor:pointer; font-size:13px; user-select:none; }
+  .chip .dot { width:8px; height:8px; border-radius:50%; }
+  .chip.on { border-color:currentColor; font-weight:600; }
+  .chip.add { color:var(--blue); border-style:dashed; }
+  .panel { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px; margin:8px 0; }
+  .panel .trow { display:flex; align-items:center; gap:8px; padding:4px 0; }
+  .panel .kws { color:var(--tx2); font-size:12px; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .panel input { border:1px solid var(--line); border-radius:6px; padding:5px 8px; font-size:13px; }
+  .panel .hint { color:var(--tx2); font-size:12px; margin-top:6px; }
+  button.btn { border:none; background:var(--blue); color:#fff; border-radius:6px; padding:5px 12px; cursor:pointer; font-size:13px; }
+  button.del { border:1px solid var(--line); background:#fff; color:#d4380d; border-radius:6px; padding:2px 8px; cursor:pointer; font-size:12px; }
+  .pills { display:flex; gap:6px; overflow-x:auto; padding:10px 0; scrollbar-width:thin; }
+  .pill { flex:0 0 auto; border:1px solid var(--line); background:var(--card); border-radius:999px; padding:3px 14px; cursor:pointer; font-size:13px; }
+  .pill.on { background:var(--blue); border-color:var(--blue); color:#fff; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; margin-bottom:14px; overflow:hidden; }
+  .sech { display:flex; justify-content:space-between; align-items:center; padding:10px 14px; border-bottom:1px solid var(--line); font-weight:600; }
+  .sech a { color:var(--blue); font-size:12px; font-weight:400; cursor:pointer; text-decoration:none; }
+  .row { display:flex; align-items:center; gap:10px; padding:7px 14px; border-bottom:1px solid var(--line); }
+  .row:last-child { border-bottom:none; }
+  .rank { width:26px; text-align:center; color:var(--tx2); font-weight:600; flex:0 0 auto; }
+  .rank.r1{color:#e11d48}.rank.r2{color:#d97706}.rank.r3{color:#b45309}
+  .word { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .badge { display:inline-block; font-size:11px; border-radius:4px; padding:0 5px; margin-left:6px; vertical-align:1px; }
+  .badge.new { background:#fff1f0; color:#e11d48; border:1px solid #ffa39e; }
+  .badge.tag { color:#fff; }
+  .stats { color:var(--tx2); font-size:12px; white-space:nowrap; }
+  .up { color:#e11d48; } .down { color:#16a34a; }
+  .empty { color:var(--tx2); text-align:center; padding:40px 0; }
+  .banner { background:#fff7e6; border:1px solid #ffd591; color:#ad6800; border-radius:8px; padding:8px 12px; margin:10px 0; }
+  footer { color:var(--tx2); font-size:12px; text-align:center; margin-top:24px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>小红书热搜词榜单</h1>
+    <div class="meta" id="meta">加载中…</div>
+  </header>
+  <div id="banner"></div>
+  <div class="tagbar" id="tagbar"></div>
+  <div class="panel" id="panel" style="display:none"></div>
+  <div class="pills" id="pills"></div>
+  <div id="list"></div>
+  <footer>数据来源：乾坤仪 · 标签仅保存在你自己的浏览器中</footer>
+</div>
+<script>
+"use strict";
+var DATA = null, CAT = "全部", ACTIVE = {}, PANEL_OPEN = false;
+var COLORS = ["#e11d48","#2563eb","#16a34a","#d97706","#7c3aed","#0891b2","#db2777","#65a30d","#9333ea","#0d9488"];
+var LS_KEY = "xhs_hot_tags_v1";
+
+function loadTags() {
+  try { return JSON.parse(localStorage.getItem(LS_KEY) || "[]"); } catch (e) { return []; }
+}
+function saveTags(t) { localStorage.setItem(LS_KEY, JSON.stringify(t)); }
+function tagColor(i) { return COLORS[i % COLORS.length]; }
+function esc(s) {
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+function fmtHot(n) {
+  if (n >= 10000) return (n / 10000).toFixed(1) + "万";
+  return String(n);
+}
+function fmtChange(c) {
+  if (c === null || c === undefined) return "";
+  var cls = c > 0 ? "up" : (c < 0 ? "down" : "");
+  var arrow = c > 0 ? "▲" : (c < 0 ? "▼" : "");
+  return '<span class="' + cls + '">' + arrow + Math.abs(c).toFixed(1) + '%</span>';
+}
+function matchTags(word) {
+  var tags = loadTags(), hit = [];
+  for (var i = 0; i < tags.length; i++) {
+    var kws = tags[i].k || [];
+    for (var j = 0; j < kws.length; j++) {
+      if (kws[j] && word.indexOf(kws[j]) >= 0) { hit.push({ t: tags[i], i: i }); break; }
+    }
+  }
+  return hit;
+}
+function rowHtml(it, showCat) {
+  var hits = matchTags(it.word);
+  var badges = "";
+  if (it.new) badges += '<span class="badge new">新上榜</span>';
+  for (var i = 0; i < hits.length; i++)
+    badges += '<span class="badge tag" style="background:' + tagColor(hits[i].i) + '">' + esc(hits[i].t.n) + '</span>';
+  var rc = it.rank <= 3 ? " r" + it.rank : "";
+  var catTxt = showCat ? '<span style="color:var(--tx2);font-size:12px;margin-left:6px">' + esc(it.cat || "") + '</span>' : "";
+  return '<div class="row"><span class="rank' + rc + '">' + it.rank + '</span>' +
+    '<span class="word">' + esc(it.word) + badges + catTxt + '</span>' +
+    '<span class="stats">' + fmtHot(it.hot) + ' 热度 · ' + it.notes + ' 笔记 · ' + fmtChange(it.change) + '</span></div>';
+}
+function renderMeta() {
+  if (!DATA) return;
+  document.getElementById("meta").textContent =
+    "榜日 " + DATA.rank_date + " · 数据更新于 " + DATA.generated_at + " · 24 分类各前 100";
+}
+function renderTagbar() {
+  var tags = loadTags(), html = '<span class="lab">我的标签：</span>';
+  if (!tags.length) html += '<span class="lab">还没有标签，点右边创建 →</span>';
+  for (var i = 0; i < tags.length; i++) {
+    var on = ACTIVE[tags[i].n] ? " on" : "";
+    html += '<span class="chip' + on + '" data-tag="' + esc(tags[i].n) + '" style="color:' + tagColor(i) + '">' +
+      '<span class="dot" style="background:' + tagColor(i) + '"></span>' + esc(tags[i].n) + '</span>';
+  }
+  html += '<span class="chip add" id="addbtn">＋ 管理标签</span>';
+  document.getElementById("tagbar").innerHTML = html;
+}
+function renderPanel() {
+  var el = document.getElementById("panel");
+  if (!PANEL_OPEN) { el.style.display = "none"; return; }
+  var tags = loadTags(), html = "";
+  for (var i = 0; i < tags.length; i++) {
+    html += '<div class="trow"><span class="dot" style="width:8px;height:8px;border-radius:50%;background:' + tagColor(i) + '"></span>' +
+      '<b>' + esc(tags[i].n) + '</b><span class="kws">' + esc((tags[i].k || []).join(" | ")) + '</span>' +
+      '<button class="del" data-del="' + esc(tags[i].n) + '">删除</button></div>';
+  }
+  html += '<div class="trow" style="margin-top:8px"><input id="newname" placeholder="标签名" style="width:110px">' +
+    '<input id="newkws" placeholder="关键词，多个用 | 分隔" style="flex:1">' +
+    '<button class="btn" id="newadd">添加</button></div>' +
+    '<div class="hint">标签和关键词只保存在你自己的浏览器里，用来高亮和筛选你关心的热搜词；关键词为包含匹配。</div>';
+  el.innerHTML = html;
+  el.style.display = "block";
+}
+function renderPills() {
+  var cats = ["全部"].concat(DATA.categories), html = "";
+  for (var i = 0; i < cats.length; i++)
+    html += '<span class="pill' + (CAT === cats[i] ? " on" : "") + '" data-cat="' + esc(cats[i]) + '">' + esc(cats[i]) + '</span>';
+  document.getElementById("pills").innerHTML = html;
+}
+function activeNames() {
+  var tags = loadTags(), names = [];
+  for (var i = 0; i < tags.length; i++) if (ACTIVE[tags[i].n]) names.push(tags[i].n);
+  return names;
+}
+function renderList() {
+  var el = document.getElementById("list");
+  var act = activeNames();
+  var html = "";
+  if (act.length) {
+    var rows = [];
+    var cats = CAT === "全部" ? DATA.categories : [CAT];
+    for (var c = 0; c < cats.length; c++) {
+      var list = DATA.items[cats[c]] || [];
+      for (var i = 0; i < list.length; i++) {
+        var it = list[i];
+        var hits = matchTags(it.word).filter(function (h) { return ACTIVE[h.t.n]; });
+        if (hits.length) { it.cat = cats[c]; rows.push(it); }
+      }
+    }
+    if (!rows.length) html = '<div class="empty">当前范围内没有命中「' + esc(act.join("、")) + '」的热搜词</div>';
+    else {
+      rows.sort(function (a, b) { return b.hot - a.hot; });
+      html = '<div class="card"><div class="sech">命中「' + esc(act.join("、")) + '」 · ' + rows.length + ' 条（按热度排序）</div>' +
+        rows.map(function (r) { return rowHtml(r, CAT === "全部"); }).join("") + '</div>';
+    }
+  } else if (CAT === "全部") {
+    for (var c2 = 0; c2 < DATA.categories.length; c2++) {
+      var cat = DATA.categories[c2], top = (DATA.items[cat] || []).slice(0, 10);
+      html += '<div class="card"><div class="sech">' + esc(cat) + ' · TOP10<a data-go="' + esc(cat) + '">看全部 100 条 »</a></div>' +
+        top.map(function (r) { return rowHtml(r, false); }).join("") + '</div>';
+    }
+  } else {
+    var full = DATA.items[CAT] || [];
+    html = '<div class="card"><div class="sech">' + esc(CAT) + ' · 前 ' + full.length + ' 条</div>' +
+      full.map(function (r) { return rowHtml(r, false); }).join("") + '</div>';
+  }
+  el.innerHTML = html;
+}
+function renderAll() { renderMeta(); renderTagbar(); renderPanel(); renderPills(); renderList(); }
+
+document.addEventListener("click", function (e) {
+  var t = e.target;
+  if (t.id === "addbtn") { PANEL_OPEN = !PANEL_OPEN; renderPanel(); return; }
+  if (t.id === "newadd") {
+    var n = document.getElementById("newname").value.trim();
+    var k = document.getElementById("newkws").value.trim();
+    if (!n || !k) { alert("标签名和关键词都要填"); return; }
+    var tags = loadTags();
+    tags.push({ n: n, k: k.replace(/，/g, "|").split("|").map(function (s) { return s.trim(); }).filter(Boolean) });
+    saveTags(tags); renderAll(); return;
+  }
+  if (t.dataset && t.dataset.del) {
+    var tags2 = loadTags().filter(function (x) { return x.n !== t.dataset.del; });
+    saveTags(tags2); delete ACTIVE[t.dataset.del]; renderAll(); return;
+  }
+  if (t.dataset && t.dataset.tag) {
+    var name = t.dataset.tag;
+    if (ACTIVE[name]) delete ACTIVE[name]; else ACTIVE[name] = 1;
+    renderTagbar(); renderList(); return;
+  }
+  if (t.dataset && t.dataset.cat) { CAT = t.dataset.cat; renderPills(); renderList(); return; }
+  if (t.dataset && t.dataset.go) { CAT = t.dataset.go; renderPills(); renderList(); window.scrollTo(0, 0); return; }
+});
+
+fetch("data.json?ts=" + Date.now()).then(function (r) {
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  return r.json();
+}).then(function (d) {
+  DATA = d; renderAll();
+}).catch(function (err) {
+  document.getElementById("meta").textContent = "数据加载失败";
+  document.getElementById("banner").innerHTML =
+    '<div class="banner">data.json 加载失败（' + esc(err.message) + '）。本地预览请先运行 fetch_json.py；GitHub 上请确认 Actions 已跑过、data.json 已提交。</div>';
+});
+</script>
+</body>
+</html>
