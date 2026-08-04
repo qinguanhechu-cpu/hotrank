@@ -40,6 +40,7 @@
   .badge { display:inline-block; font-size:11px; border-radius:4px; padding:0 5px; margin-left:6px; vertical-align:1px; }
   .badge.new { background:#fff1f0; color:#e11d48; border:1px solid #ffa39e; }
   .badge.tag { color:#fff; }
+  .badge.tp { background:#f2f3f5; color:#565960; border:1px solid var(--line); }
   .stats { color:var(--tx2); font-size:12px; white-space:nowrap; }
   .up { color:#e11d48; } .down { color:#16a34a; }
   .empty { color:var(--tx2); text-align:center; padding:40px 0; }
@@ -130,10 +131,31 @@ function trafficHtml() {
   if (act.length && !shown) html += '<div class="empty">没有命中「' + esc(act.join("、")) + '」的流量扶持话题</div>';
   return html;
 }
+function topicsHtml() {
+  var act = activeNames();
+  var obj = DATA.topics_traffic || {};
+  var list = obj.list || [];
+  var html = '<div class="meta" style="margin:2px 2px 10px">话题流量榜 ' + esc(obj.date || "") + ' · 按互动量排序 · 前 ' + list.length + ' · 鼠标悬停话题可看简介</div>';
+  var rows = "", shown = 0;
+  for (var i = 0; i < list.length; i++) {
+    var it = list[i];
+    var th = act.length ? matchActive(it.name) : [];
+    if (act.length && !th.length) continue;
+    shown++;
+    var rc = (i + 1) <= 3 ? " r" + (i + 1) : "";
+    rows += '<div class="row" title="' + esc(it.intro) + '"><span class="rank' + rc + '">' + (i + 1) + '</span>' +
+      '<span class="word">#' + esc(it.name) + '<span class="badge tp">' + esc(it.type) + '</span>' + tagBadges(th) + '</span>' +
+      '<span class="stats">互动 ' + fmtHot(it.inter) + ' · 浏览 ' + fmtHot(it.view) + ' · 笔记 ' + fmtHot(it.notes) + '</span></div>';
+  }
+  if (!rows) html += '<div class="empty">' + (act.length ? '没有命中「' + esc(act.join("、")) + '」的话题' : '暂无数据') + '</div>';
+  else html += '<div class="card">' + rows + '</div>';
+  return html;
+}
 function renderModes() {
   document.getElementById("modes").innerHTML =
     '<span class="pill' + (MODE === "rank" ? " on" : "") + '" data-mode="rank">热搜榜</span>' +
-    '<span class="pill' + (MODE === "traffic" ? " on" : "") + '" data-mode="traffic">流量扶持话题</span>';
+    '<span class="pill' + (MODE === "traffic" ? " on" : "") + '" data-mode="traffic">流量扶持话题</span>' +
+    '<span class="pill' + (MODE === "topics" ? " on" : "") + '" data-mode="topics">话题流量榜</span>';
   document.getElementById("pills").style.display = MODE === "rank" ? "" : "none";
 }
 function rowHtml(it, showCat) {
@@ -194,6 +216,7 @@ function activeNames() {
 function renderList() {
   var el = document.getElementById("list");
   if (MODE === "traffic") { el.innerHTML = trafficHtml(); return; }
+  if (MODE === "topics") { el.innerHTML = topicsHtml(); return; }
   var act = activeNames();
   var html = "";
   if (act.length) {

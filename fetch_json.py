@@ -17,6 +17,7 @@ CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
 OUT_PATH = os.path.join(BASE_DIR, "data.json")
 
 BASE_URL = "https://ali.sqllb.com/api/qky2/nr/app/xh/v2"
+BASE_QKY = "https://ali.sqllb.com/api/qky/xdnphb/nr/app/xhs"
 N_TOKEN = "35c430ef650b459ba2b9c1409148d929"
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36")
@@ -48,9 +49,9 @@ def get_cookie():
     raise CookieExpired("未找到 cookie：Actions 需配置 XHS_COOKIE secret，本地需 config.json")
 
 
-def post(cookie, path, body):
+def post(cookie, path, body, base=None):
     req = urllib.request.Request(
-        BASE_URL + path, data=json.dumps(body).encode("utf-8"), method="POST")
+        (base or BASE_URL) + path, data=json.dumps(body).encode("utf-8"), method="POST")
     for k, v in {
         "Content-Type": "application/json", "N-Token": N_TOKEN, "Cookie": cookie,
         "Origin": "https://ali.sqllb.com",
@@ -120,6 +121,25 @@ def main():
         })
     time.sleep(0.5)
 
+    tdates = post(cookie, "/rank/trafficRankDate", {}, base=BASE_QKY)
+    tday = (tdates or [""])[0]
+    trows = []
+    if tday:
+        tdata2 = post(cookie, "/rank/topicTraffic",
+                      {"type": "", "recordTime": tday, "sort": "interactive_num",
+                       "start": 1, "size": 100}, base=BASE_QKY)
+        for t in tdata2.get("list") or []:
+            trows.append({
+                "name": t.get("topicName") or "",
+                "type": t.get("topicsType") or "",
+                "intro": t.get("topicIntroduction") or "",
+                "view": int(float(t.get("viewAdd") or 0)),
+                "discuss": int(float(t.get("discussAdd") or 0)),
+                "notes": int(float(t.get("noteNum") or 0)),
+                "inter": int(float(t.get("interactiveNum") or 0)),
+            })
+    time.sleep(0.5)
+
     now = datetime.now(timezone(timedelta(hours=8)))
     out = {
         "rank_date": day,
@@ -127,6 +147,7 @@ def main():
         "categories": CATEGORIES,
         "items": items,
         "traffic": traffic,
+        "topics_traffic": {"date": tday, "list": trows},
     }
     with open(OUT_PATH, "w", encoding="utf-8") as f:
         json.dump(out, f, ensure_ascii=False)
